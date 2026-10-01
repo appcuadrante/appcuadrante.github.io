@@ -1,0 +1,42 @@
+# Despertador de App Cuadrante
+# GitHub lo ejecuta solo una vez al día: hace una consulta pequeña a Supabase para que el proyecto
+# gratuito no se pause nunca por inactividad (se pausa tras 7 días sin uso).
+# Además, el día 1 de cada mes guarda un archivo con la fecha: GitHub desactiva las tareas automáticas
+# de los repositorios públicos que pasan 60 días sin cambios, y así eso no ocurre nunca.
+# Va en el repositorio en la ruta: .github/workflows/despertador.yml
+name: Despertador
+
+on:
+  schedule:
+    - cron: "17 4 * * *"      # todos los días a las 04:17 (hora UTC)
+  workflow_dispatch:          # permite lanzarlo a mano desde la pestaña "Actions"
+
+permissions:
+  contents: write
+
+jobs:
+  despertar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consulta pequeña a Supabase
+        run: |
+          curl -s -o /dev/null -w "Supabase respondió: %{http_code}\n" \
+            -X POST "https://txedkqwswsliufrngwop.supabase.co/rest/v1/rpc/correo_de_usuario" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4ZWRrcXdzd3NsaXVmcm5nd29wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMDM3MTAsImV4cCI6MjEwNTY3OTcxMH0.ttTH4Ole3DaOFRoopxDWI8mdSPVHqhTNFYScZP1M7-A" \
+            -H "Content-Type: application/json" \
+            -d '{"p_usuario":"despertador"}'
+
+      - name: Marca mensual (para que GitHub no desactive el despertador)
+        run: |
+          if [ "$(date -u +%d)" = "01" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git clone --depth 1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" repo
+            cd repo
+            date -u +"Última revisión automática: %Y-%m-%d %H:%M UTC" > ultima-revision.txt
+            git config user.name "despertador"
+            git config user.email "despertador@users.noreply.github.com"
+            git add ultima-revision.txt
+            git commit -m "Revisión automática mensual" || echo "Sin cambios"
+            git push
+          else
+            echo "Hoy no toca la marca mensual."
+          fi
